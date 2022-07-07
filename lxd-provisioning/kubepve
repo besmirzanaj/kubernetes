@@ -1,0 +1,76 @@
+#!/bin/bash
+
+usage()
+{
+  echo "Usage: kubelx [provision|destroy]"
+  exit 1
+}
+
+ssh_public_key="/root/.ssh/authorized_keys"
+
+# declare -A NODES
+# NODES['kmaster.cloudalbania.com']='151'
+# NODES['kworker1.cloudalbania.com']='152'
+# NODES['kworker2.cloudalbania.com']='153'
+
+declare -A NODES=( ['153']='kworker2.cloudalbania.com' ['151']='kmaster.cloudalbania.com' ['152']='kworker1.cloudalbania.com' )
+
+for key in "${!NODES[@]}"; do
+    echo "$key ${NODES[$key]}"
+done
+
+kubeprovision()
+{
+  echo 
+  for key in "${!NODES[@]}"; do
+  echo "creating container${NODES[$key]}"
+  ssh root@pve02.cloudalbania.com "pct create $key local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.gz \
+    --arch amd64 \
+    --ostype ubuntu \
+    --hostname ${NODES[$key]} \
+    --cores 4 \
+    --memory 4069 \
+    --swap 512 \
+    --storage synology \
+    --password=besmir123 \
+    --ssh-public-keys /root/.ssh/authorized_keys \
+    --net0 name=eth0,bridge=vmbr1,gw=192.168.88.1,ip=192.168.88.$key/24,type=veth \
+    --rootfs volume=test_vms:30"
+  echo "Starting VM"
+  ssh root@pve02.cloudalbania.com "pct start $key"
+  echo "cleaning up cached ssh key"
+  ssh-keygen -R 192.168.88.$key
+  ssh-keygen -R ${NODES[$key]}
+  # ssh root@pve02.cloudalbania.com "pct resize ${NODES[$key]} rootfs +26G"
+  #ssh root@pve02.cloudalbania.com "pct exec ${NODES[$key]} -- bash -c 'echo "PermitRootLogin yes" >> /etc/ssh/sshd_config'"
+  #ssh root@pve02.cloudalbania.com "pct exec ${NODES[$key]} -- bash -c 'systemctl restart sshd'"
+  echo "test connectivity"
+  ssh root@${NODES[$key]} -o "StrictHostKeyChecking no" uptime
+  echo "==> Running provisioner script"
+  cat bootstrap-kube.sh | ssh root@pve02.cloudalbania.com "pct exec $key -- bash"
+  done
+}
+
+
+kubedestroy()
+{
+  for key in "${!NODES[@]}"; do
+     echo "==> Destroying ${NODES[$key]} ..."
+     ssh root@pve02.cloudalbania.com "pct stop $key"
+     ssh root@pve02.cloudalbania.com "pct destroy $key"
+  done
+}
+
+case "$1" in
+  provision)
+    echo -e "\nProvisioning Kubernetes Cluster...\n"
+    kubeprovision
+    ;;
+  destroy)
+    echo -e "\nDestroying Kubernetes Cluster...\n"
+    kubedestroy
+    ;;
+  *)
+    usage
+    ;;
+esac

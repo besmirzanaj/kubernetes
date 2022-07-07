@@ -6,7 +6,7 @@ usage()
   exit 1
 }
 
-NODES="kmaster kworker1 kworker2"
+NODES="kmaster.cloudalbania.com kworker1.cloudalbania.com kworker2.cloudalbania.com"
 
 kubeprovision()
 {

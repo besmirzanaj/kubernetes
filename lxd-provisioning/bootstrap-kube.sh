@@ -3,7 +3,9 @@
 # This script has been tested on Ubuntu 20.04
 # For other versions of Ubuntu, you might need some tweaking
 
-echo "[TASK 0] Install essential packages"
+echo "[TASK 0] Update OS and install essential packages"
+apt update
+apt -y upgrade
 apt install -qq -y net-tools curl ssh software-properties-common >/dev/null 2>&1
 
 echo "[TASK 1] Install containerd runtime"
